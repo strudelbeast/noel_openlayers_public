@@ -1,3 +1,9 @@
+/**
+ * Berechnung der Route zwischen zwei Features
+ * @param {String} url Url des Services der das Routing durchführt
+ * @param {Array<ol.Feature>} points Die Features zwischen denen die Route berechnet werden soll
+ * @return {String} Json-String (contains Feature Collection)
+ */
 async function getRoute(url, points) {
     var returnObj
     var postObject = [{
@@ -43,7 +49,13 @@ async function getRoute(url, points) {
     return returnObj
 }
 
+/**
+ * Linienberechnung zwischen zwei Features
+ * @param {Array<ol.Feature>} points Die Features zwischen denen die Route berechnet werden soll
+ * @return {String} Json-String (contains Feature Collection)
+ */
 function getLine(points) {
+    //Features in das richtige Format umwandeln EPSG:3857 => EPSG:4326
     points = points.map(p => ol.proj.toLonLat(p.getGeometry().getCoordinates()))
     return {
         'type': 'FeatureCollection',
@@ -63,6 +75,6 @@ function getLine(points) {
     }
 }
 
+//zur weitergabe an andere Files
 window.getRoute = getRoute
 window.getLine = getLine
-/* export {getRoute,getLine} */

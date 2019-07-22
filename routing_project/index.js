@@ -1,8 +1,3 @@
-/* import menubar from './menu.js';
-import { getRoute, getLine } from './way_library';
-import 'ol-ext';
-import 'regenerator-runtime/runtime' */
-
 var map
 
 const modes = {
@@ -14,6 +9,7 @@ const modes = {
     NOTHING: 'nothing'
 }
 
+//Layer, on which the Points get placed
 var pointLayer = new ol.layer.Vector({
     source: new ol.source.Vector({
         features: []
@@ -21,6 +17,7 @@ var pointLayer = new ol.layer.Vector({
     opacity: 1
 })
 
+//Layer, on which the LineStrings get placed
 var routesLayer = new ol.layer.Vector({
     source: new ol.source.Vector({
         features: []
@@ -30,21 +27,28 @@ var routesLayer = new ol.layer.Vector({
 
 var routes = []
 var points = []
-var mode = modes.ROUTING
-var parser = new ol.format.WMTSCapabilities(); /* wird zum Parsen des Metadatentextes verwendet */
+var mode = modes.ROUTING //Mode at start
+var parser = new ol.format.WMTSCapabilities(); /* used parse the Metadata */
 
+//Interaction, which splitts a LineString
 var splitInteraction = new ol.interaction.Split({ sources: routesLayer.getSource() })
 routesLayer.getSource().on("aftersplit", (e) => {
     if (routes.length > 0) {
+        //get index of the unsplitted Feature
         var index = routes.indexOf(e.original)
+        //add new Features instead of the old one into the array
         routes = routes.slice(0, index).concat(e.features).concat(routes.slice(index + 1, routes.length))
         var pointFeature = new ol.Feature({
             geometry: new ol.geom.Point(
+                //Point where the LineString was splitted
                 e.features[0].getGeometry().getCoordinateAt(1)
             )
         })
+        //Get style of any point
         pointFeature.setStyle(points[0].getStyle())
+        //add new Point into the array
         points = points.slice(0, index + 1).concat(pointFeature).concat(points.slice(index + 1, points.length))
+        //add Feature to Layer
         pointLayer.getSource().addFeature(pointFeature)
     }
 })
@@ -100,9 +104,11 @@ function setMode(inMode) {
 }
 
 async function getPrevious(url, dragPointIndex) {
+    //check if old Linestring was Route or Line
     let featureCollection = routes[dragPointIndex - 1].values_.geometry.flatCoordinates.length > 4 ? await getRoute(url, [points[dragPointIndex - 1], points[dragPointIndex]]) : getLine([points[dragPointIndex - 1], points[dragPointIndex]])
     var returnObj = null
     if (featureCollection) {
+        //Array of Features
         returnObj = (new ol.format.GeoJSON()).readFeatures(
             //feature collection json
             featureCollection,
@@ -116,6 +122,7 @@ async function getPrevious(url, dragPointIndex) {
 }
 
 async function getAfterwards(url, dragPointIndex) {
+    //check if old Linestring was Route or Line
     let featureCollection = routes[dragPointIndex].values_.geometry.flatCoordinates.length > 4 ? await getRoute(url, [points[dragPointIndex], points[dragPointIndex + 1]]) : getLine([points[dragPointIndex], points[dragPointIndex + 1]])
     var returnObj = null
     if (featureCollection) {
@@ -131,6 +138,13 @@ async function getAfterwards(url, dragPointIndex) {
     return returnObj
 }
 
+/**
+ * Handle Translate-Event
+ * @param {Event} evt Translate-Event
+ * @param {Number} previous Index of the previous Line
+ * @param {Number} afterwards Index of the afterwards Line
+ * @param {Number} dragPointIndex Index of the Point, which was dragged
+ */
 async function handleTranslation(evt, previous, afterwards, dragPointIndex) {
     var eventFeature
     map.forEachFeatureAtPixel(map.getPixelFromCoordinate(evt.coordinate),
@@ -138,12 +152,15 @@ async function handleTranslation(evt, previous, afterwards, dragPointIndex) {
             eventFeature = feature
         }
     )
+    //Get Service for Routing
     var url = document.getElementById("Itinero").checked ? "https://ern.noel.gv.at/Routing/SimpleRoute" : "https://ern.noel.gv.at/VAORouting/SimpleRouting"
     points[dragPointIndex] = eventFeature
+    //check if there is already a route
     if (points.length >= 2) {
         var lineStyle = new ol.style.Style({
             stroke: new ol.style.Stroke({ color: '#ffcc33', width: 3 })
         })
+        //check if point has a previous Line => is Startingpoint ?
         if (previous || previous == 0) {
             let newRoute = await getPrevious(url, dragPointIndex)
             if (newRoute) {
@@ -153,6 +170,7 @@ async function handleTranslation(evt, previous, afterwards, dragPointIndex) {
                 routesLayer.getSource().addFeature(routes[previous])
             }
         }
+        //check if point has a afterwards Line => is Endingpoint ?
         if (afterwards || afterwards == 0) {
             let newRoute = await getAfterwards(url, dragPointIndex)
             if (newRoute) {
@@ -166,6 +184,10 @@ async function handleTranslation(evt, previous, afterwards, dragPointIndex) {
     }
 }
 
+/**
+ * Create Drag (ol.interaction.Translate) Event for Point-Feature
+ * @param {Feature} point 
+ */
 function addDragEvent(point) {
     let translate = new ol.interaction.Translate({
         features: new ol.Collection([point])
@@ -186,12 +208,17 @@ function addDragEvent(point) {
             afterwards = dragPointIndex
         }
     });
+    //Use translateend instead of translating to improve performance
     translate.on('translateend', function (evt) {
         handleTranslation(evt, previous, afterwards, dragPointIndex)
     });
     map.addInteraction(translate);
 }
 
+/**
+ * Delete Feature
+ * @param {Array<Number>} coordinates Coordinates of the Feature, which will be deleted
+ */
 async function handleBin(coordinates) {
     var eventFeature
     var lineStyle = new ol.style.Style({
@@ -210,15 +237,17 @@ async function handleBin(coordinates) {
     } else {
         var url = document.getElementById("Itinero").checked ? "https://ern.noel.gv.at/Routing/SimpleRoute" : "https://ern.noel.gv.at/VAORouting/SimpleRouting"
         var delPointIndex = points.indexOf(eventFeature)
-        //Delete beginning
+        //Delete at beginning
         if (delPointIndex == 0) {
+            //remove features
             routesLayer.getSource().removeFeature(routes[delPointIndex])
             pointLayer.getSource().removeFeature(points[delPointIndex])
+            //remove the first element
             routes = routes.slice(1, routes.length)
             points = points.slice(1, points.length)
             routesLayer.getSource().refresh()
             pointLayer.getSource().refresh()
-            //delete end
+            //delete at end
         } else if (delPointIndex == points.length - 1) {
             routesLayer.getSource().removeFeature(routes[delPointIndex - 1])
             pointLayer.getSource().removeFeature(points[delPointIndex])
@@ -227,6 +256,7 @@ async function handleBin(coordinates) {
             routesLayer.getSource().refresh()
             pointLayer.getSource().refresh()
         } else {
+            //delete in between
             let featureCollection = document.getElementById("route").checked ? await getRoute(url, [points[delPointIndex - 1], points[delPointIndex + 1]]) : getLine([points[delPointIndex - 1], points[delPointIndex + 1]])
             //if not routeable => draw line instead
             if (featureCollection == null) {
@@ -259,7 +289,11 @@ async function handleBin(coordinates) {
     }
 }
 
-
+/**
+ * Add a point Feature
+ * @param {Array<Number>} coordinates Coordinates of the point
+ * @param {Boolean} byaddress Pointadd-Call from Adressfield
+ */
 async function addPoint(coordinates, byaddress = false) {
     var styleMarker = new ol.style.Style({
         image: new ol.style.Icon({
@@ -352,15 +386,21 @@ fetch('https://basemap.at/wmts/1.0.0/WMTSCapabilities.xml').then(
                     maxZoom: 19
                 })
             })
+            //add menu from menu.js
             map.addControl(menubar)
             map.on('click', function (event) {
+                //add point if mode is set to manual or routing
                 if (mode == modes.ROUTING || mode == modes.MANUAL) addPoint(ol.proj.toLonLat(event.coordinate), false)
+                //delete point if mode is set to wastebin
                 if (mode == modes.BIN) handleBin(event.coordinate)
             });
+            //deactivate split interaction on start
             splitInteraction.setActive(false)
+            //add split interaction to map
             map.addInteraction(splitInteraction)
         });
+
+//export variables and functions so other files can use it
 window.addPointByAddress = addPoint
 window.setMode = setMode
 window.modes = modes
-/* export { setMode, modes }; */

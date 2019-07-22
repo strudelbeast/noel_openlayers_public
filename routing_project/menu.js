@@ -1,5 +1,3 @@
-/* import {setMode,modes} from './index' */
-
 var menubar = new ol.control.Bar(
     {
         toggleOne: true,
@@ -49,5 +47,5 @@ var menubar = new ol.control.Bar(
         ]
     })
 
-/* export default menubar */
+//zur weitergabe anderer Files
 window.menubar = menubar
