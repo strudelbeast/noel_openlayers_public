@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Routingproject</title>
+
+    <!--font awesome-->
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.9.0/css/all.css">
+
+    <!--Openlayers-->
+    <script src="https://cdn.rawgit.com/openlayers/openlayers.github.io/master/en/v5.3.0/build/ol.js"></script>
+    <link rel="stylesheet" href="https://cdn.rawgit.com/openlayers/openlayers.github.io/master/en/v5.3.0/css/ol.css"
+        type="text/css">
+    <script
+        src="https://cdn.polyfill.io/v2/polyfill.min.js?features=requestAnimationFrame,Element.prototype.classList,URL,Object.assign"></script>
+
+    <!--jquery-->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+
+    <!-- ol-ext -->
+    <link rel="stylesheet" href="https://cdn.rawgit.com/Viglino/ol-ext/master/dist/ol-ext.min.css" />
+    <script type="text/javascript" src="https://cdn.rawgit.com/Viglino/ol-ext/master/dist/ol-ext.min.js"></script>
+
+    <script type="text/javascript" src="./node_modules/regenerator-runtime/runtime.js"></script>
+
+    <!--self written-->
+    <script type="text/javascript" src="./way_library.js"></script>
+    <script type="text/javascript" src="./menu.js"></script>
+    <script type="text/javascript" src="./index.js"></script>
+    <style>
+        #map {
+            width: 80%;
+            height: 80%;
+            margin: auto;
+        }
+
+        .autocomplete {
+            position: relative;
+            display: inline-block;
+        }
+
+        input {
+            border: 1px solid transparent;
+            background-color: #f1f1f1;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        input[type=text] {
+            background-color: #f1f1f1;
+            width: 100%;
+        }
+
+        input[type=submit] {
+            background-color: DodgerBlue;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid #d4d4d4;
+            border-bottom: none;
+            border-top: none;
+            z-index: 99;
+            /*position the autocomplete items to be the same width as the container:*/
+            top: 100%;
+            left: 0;
+            right: 0;
+        }
+
+        .autocomplete-items div {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #fff;
+            border-bottom: 1px solid #d4d4d4;
+        }
+
+        /*when hovering an item:*/
+
+        .autocomplete-items div:hover {
+            background-color: #e9e9e9;
+        }
+
+        /*when navigating through the items using the arrow keys:*/
+
+        .autocomplete-active {
+            background-color: DodgerBlue !important;
+            color: #ffffff;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div id="map"></div>
+    <br>
+    <hr>
+    <div>
+        <label for="searchAddress">Add Point by adress</label>
+        <div class="autocomplete" style="width:400px;">
+            <input id="searchAddress" type="text" name="myStartAddress" placeholder="PLZ Ort Strasse Hausnummer">
+        </div>
+        <div>
+            <input type="submit" id="addAddressSubmit">
+            <input type="radio" name="routingService" checked id="Itinero"> Itinero
+            <input type="radio" name="routingService" id="VAO"> VonAnachB
+        </div>
+        <br>
+        <div>
+            Geometry to choose on delete or add by address
+            <input type="radio" name="geometry" checked id="route"> Route
+            <input type="radio" name="geometry" id="line"> Line
+        </div>
+        <script>
+            var inpVal = {
+                valid: false,
+                coordinates: []
+            }
+            document.getElementById("addAddressSubmit").addEventListener("click", (e) => {
+                if (inpVal.valid) {
+                    addPointByAddress(inpVal.coordinates, true)
+                    document.getElementById("searchAddress").value = ""
+                } else {
+                    console.log("Not valid address")
+                }
+            })
+            function searchAddress(url, cFunction) {
+                var xhttp;
+                xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        cFunction(this);
+                    }
+                };
+                xhttp.open("GET", url, false); // Synchroner Aufruf - sonst Lookupfehler
+                xhttp.send();
+            }
+
+            function searchStartAddress(xhttp) {
+                // Einlesen der Treffer
+                responseText = xhttp.responseText;
+                // Treffer Text in JSON umwandeln
+                responseObj = JSON.parse(responseText);
+            }
+
+            function searchTargetAddress(xhttp) {
+                // Einlesen der Treffer
+                responseText = xhttp.responseText;
+                // Treffer Text in JSON umwandeln
+                responseObj = JSON.parse(responseText);
+            }
+
+            function autocomplete(inp, cFun) {
+                /*the autocomplete function takes two arguments,
+                the text field element and a function which fills up an search array:*/
+                var currentFocus;
+                /*execute a function when someone writes in the text field:*/
+                inp.addEventListener("input", function (e) {
+                    var a, b, i, val = this.value;
+                    /*close any already open lists of autocompleted values*/
+                    closeAllLists();
+                    if (!val) {
+                        return false;
+                    }
+                    currentFocus = -1;
+                    /*Befuelle die Trefferliste mit dem Ergebnis der Adresssuche*/
+                    if (val.length > 4) {
+                        // Ermittle die Startadresse und damit die Startkoordinaten
+                        var adrabURL = "https://adrab.noel.gv.at/Search/SearchAdress?query=" +
+                            encodeURI(val) + "&adressType=object&crs=1";
+                        searchAddress(adrabURL, cFun);
+                        fillAddresses(responseObj);
+                    } else addresses = [];
+                    /*create a DIV element that will contain the items (values):*/
+                    a = document.createElement("DIV");
+                    a.setAttribute("id", this.id + "autocomplete-list");
+                    a.setAttribute("class", "autocomplete-items");
+                    /*append the DIV element as a child of the autocomplete container:*/
+                    this.parentNode.appendChild(a);
+                    /*for each item in the array...*/
+                    for (i = 0; i < addresses.length && i < 10; i++) {
+                        /*check if the item starts with the same letters as the text field value:*/
+                        /*create a DIV element for each matching element:*/
+                        b = document.createElement("DIV");
+                        /*take the matching letters*/
+                        b.innerHTML = addresses[i].info;
+                        /*insert a input field that will hold the current array item's value:*/
+                        b.innerHTML += "<input type='hidden' value='" + JSON.stringify(addresses[i]) + "'>";
+                        /*execute a function when someone clicks on the item value (DIV element):*/
+                        b.addEventListener("click", function (e) {
+                            var coordinateObj;
+                            // Extrahiere die Adress Parameter aus dem Input-Value
+                            var adrObj = JSON.parse(this.getElementsByTagName("input")[0].value);
+                            // insert the value for the autocomplete text field:
+                            inp.value = adrObj.info;
+                            inpVal.valid = true
+                            inpVal.coordinates = [adrObj.lon, adrObj.lat]
+                            closeAllLists();
+                        });
+                        a.appendChild(b);
+                    }
+                });
+                /*execute a function presses a key on the keyboard:*/
+                inp.addEventListener("keydown", function (e) {
+                    inpVal.valid = false
+                    var x = document.getElementById(this.id + "autocomplete-list");
+                    if (x) x = x.getElementsByTagName("div");
+                    if (e.keyCode == 40) {
+                        /*If the arrow DOWN key is pressed,
+                        increase the currentFocus variable:*/
+                        currentFocus++;
+                        /*and and make the current item more visible:*/
+                        addActive(x);
+                    } else if (e.keyCode == 38) { //up
+                        /*If the arrow UP key is pressed,
+                        decrease the currentFocus variable:*/
+                        currentFocus--;
+                        /*and and make the current item more visible:*/
+                        addActive(x);
+                    } else if (e.keyCode == 13) {
+                        /*If the ENTER key is pressed, prevent the form from being submitted,*/
+                        e.preventDefault();
+                        if (currentFocus > -1) {
+                            /*and simulate a click on the "active" item:*/
+                            if (x) x[currentFocus].click();
+                        }
+                    }
+                });
+
+                function fillAddresses(adrObj) {
+                    var results = [];
+                    // [{"info":"PLZ ...","lon":14.000,"lat":48.000}]
+                    for (posObj in adrObj) {
+                        results.push({
+                            info: adrObj[posObj].title,
+                            lon: adrObj[posObj].x_coordinate,
+                            lat: adrObj[posObj].y_coordinate
+                        })
+                    }
+                    addresses = results;
+                }
+
+                function addActive(x) {
+                    /*a function to classify an item as "active":*/
+                    if (!x) return false;
+                    /*start by removing the "active" class on all items:*/
+                    removeActive(x);
+                    if (currentFocus >= x.length) currentFocus = 0;
+                    if (currentFocus < 0) currentFocus = (x.length - 1);
+                    /*add class "autocomplete-active":*/
+                    x[currentFocus].classList.add("autocomplete-active");
+                }
+
+                function removeActive(x) {
+                    /*a function to remove the "active" class from all autocomplete items:*/
+                    for (var i = 0; i < x.length; i++) {
+                        x[i].classList.remove("autocomplete-active");
+                    }
+                }
+
+                function closeAllLists(elmnt) {
+                    /*close all autocomplete lists in the document,
+                    except the one passed as an argument:*/
+                    var x = document.getElementsByClassName("autocomplete-items");
+                    for (var i = 0; i < x.length; i++) {
+                        if (elmnt != x[i] && elmnt != inp) {
+                            x[i].parentNode.removeChild(x[i]);
+                        }
+                    }
+                }
+                /*execute a function when someone clicks in the document:*/
+                document.addEventListener("click", function (e) {
+                    closeAllLists(e.target);
+                });
+            }
+            // Initialisiere die autocomplete Felder
+            autocomplete(document.getElementById("searchAddress"), searchStartAddress);
+        </script>
+    </div>
+</body>
+
+</html>
