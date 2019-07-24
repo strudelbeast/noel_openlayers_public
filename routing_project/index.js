@@ -503,17 +503,17 @@ fetch('https://basemap.at/wmts/1.0.0/WMTSCapabilities.xml').then(
                 stroke: new ol.style.Stroke({ color: '#ffcc33', width: 3 })
             })
             var hoverInteraction = new ol.interaction.Hover({ cursor: "pointer" });
-            var hoverFeaturePixel
+            var hoverFeatureCoords = [0,0]
             hoverInteraction.on('enter', (e) => {
                 if (e.feature.getGeometry().getType() == 'LineString') {
                     e.feature.setStyle(hoverStyle)
                     currLengthElem.value = formatMeters(e.feature.getGeometry().getLength())
-                    hoverFeaturePixel = e.pixel
+                    hoverFeatureCoords = e.coordinate
                 }
             })
 
             hoverInteraction.on('leave', (e) => {
-                map.forEachFeatureAtPixel(hoverFeaturePixel, feature => {
+                map.forEachFeatureAtPixel(map.getPixelFromCoordinate(hoverFeatureCoords), feature => {
                     if(feature.getGeometry().getType() == 'LineString'){
                         feature.setStyle(defaultStyle)
                     }

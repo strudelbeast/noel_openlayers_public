@@ -17,8 +17,8 @@
     <script type="text/javascript" src="./index.js"></script>
     <style>
         #map {
-            width: 50%;
-            height: 50%;
+            width: 80%;
+            height: 80%;
             margin: auto;
         }
     </style>
@@ -29,7 +29,7 @@
             <input type="text" class="form-control" id="poiTypes" placeholder="POI">
         </div>
         <div class="form-group">
-            <button type="submit" onclick="index.getPointsOfInterest(document.getElementById('poiTypes').value)" class="btn btn-primary">Submit</button>
+            <button type="submit" onclick="getPointsOfInterest(document.getElementById('poiTypes').value)" class="btn btn-primary">Submit</button>
         </div>
     </div>
     <div id="map"></div>
