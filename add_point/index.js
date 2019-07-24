@@ -1,5 +1,3 @@
-import 'ol/ol.css';
-
 var parser = new ol.format.WMTSCapabilities(); /* wird zum Parsen des Metadatentextes verwendet */
 
 /****
