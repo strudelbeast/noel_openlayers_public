@@ -23,7 +23,7 @@
     <script type="text/javascript" src="https://cdn.rawgit.com/Viglino/ol-ext/master/dist/ol-ext.min.js"></script>
 
     <!--regenerator runtime for async calls-->
-    <script type="text/javascript" src="./node_modules/regenerator-runtime/runtime.js"></script>
+    <script type="text/javascript" src="./regenerator-runtime/runtime.js"></script>
 
     <!--self written-->
     <script type="text/javascript" src="./way_library.js"></script>
@@ -97,6 +97,7 @@
 <body>
     <div id="map"></div>
     <br>
+    <p>Current Length: </p> <input type="text" id="currLength" readonly="readonly"> 
     <hr>
     <div>
         <label for="searchAddress">Add Point by adress</label>
@@ -114,7 +115,22 @@
             <input type="radio" name="geometry" checked id="route"> Route
             <input type="radio" name="geometry" id="line"> Line
         </div>
+        <div>
+            <input type="file" id="datainput">
+            <input type="submit" id="datainputSubmit" value="Import data">
+            <button type="submit" onclick="exportData()" id="addAddressSubmit" >Export data</button>
+        </div>
+        <div>
+            <h4>Information Field</h4>
+            <p>Whole Length</p> <input type="text" readonly="readonly" id="wholeLength">
+            <p>Length of all Routes</p> <input type="text" readonly="readonly" id="routeLength">
+            <p>Length of all Lines</p> <input type="text" readonly="readonly" id="lineLength">
+
+        </div>
         <script>
+            document.getElementById("datainputSubmit").addEventListener("click", (e) => {
+                importData(document.getElementById('datainput').files[0])
+            })
             var inpVal = {
                 valid: false,
                 coordinates: []

@@ -30,6 +30,38 @@ var points = []
 var mode = modes.ROUTING //Mode at start
 var parser = new ol.format.WMTSCapabilities(); /* used parse the Metadata */
 
+function formatMeters(meter) {
+    if (meter > 1000) {
+        return (Math.round(meter) / 1000) +
+            ' ' + 'km';
+    } else {
+        return meter + ' m';
+    }
+}
+
+function updateInformationFields() {
+    var wholeLengthElem = document.getElementById('wholeLength')
+    var routeLengthElem = document.getElementById('routeLength')
+    var lineLengthElem = document.getElementById('lineLength')
+
+    var wL = 0
+    var rL = 0
+    var lL = 0
+
+    routes.forEach(feature => {
+        let length = feature.getGeometry().getLength()
+        if (feature.values_.geometry.flatCoordinates.length > 4) {
+            rL += length
+        } else {
+            lL += length
+        }
+        wL += length
+    })
+    wholeLengthElem.value = formatMeters(wL)
+    lineLengthElem.value = formatMeters(lL)
+    routeLengthElem.value = formatMeters(rL)
+}
+
 //Interaction, which splitts a LineString
 var splitInteraction = new ol.interaction.Split({ sources: routesLayer.getSource() })
 routesLayer.getSource().on("aftersplit", (e) => {
@@ -288,6 +320,64 @@ async function handleBin(coordinates) {
         }
     }
 }
+//=========================================================================================
+//                            === im/export data ===
+
+makeToBlob = function (content) {
+    return new Blob([content], {
+        type: "text/json"
+    });
+};
+
+function exportData() {
+    var geosjsonObj = (new ol.format.GeoJSON()).writeFeatures([...routes, ...points])
+    var a = document.createElement('a')
+    a.style.display = 'none'
+    a.download = 'data.json'
+    document.body.appendChild(a)
+    a.href = URL.createObjectURL(makeToBlob(geosjsonObj))
+    a.click()
+    URL.revokeObjectURL(a.href)
+    a.remove()
+}
+
+async function getFileContent(file) {
+    const fr = new FileReader()
+    var prom = await new Promise((resolve, reject) => {
+        fr.onerror = () => {
+            fr.abort();
+            reject(new DOMException("Problem parsing input file."));
+        };
+        fr.onload = () => {
+            resolve(fr.result);
+        };
+        fr.readAsText(file);
+    });
+    return prom
+}
+
+async function importData(file) {
+    var content = await getFileContent(file);
+    var featureArr = (new ol.format.GeoJSON()).readFeatures(content)
+    if (featureArr.length > 0) {
+        featureArr.forEach(feature => {
+            if (feature.getGeometry().getType() == 'Point') {
+                points.push(feature)
+                pointLayer.getSource().addFeature(feature)
+            } else if (feature.getGeometry().getType() == 'LineString') {
+                routes.push(feature)
+                routesLayer.getSource().addFeature(feature)
+            }
+        })
+        routesLayer.getSource().refresh()
+        pointLayer.getSource().refresh()
+    }
+}
+
+window.importData = importData
+window.exportData = exportData
+
+//==========================================================================
 
 /**
  * Add a point Feature
@@ -394,10 +484,44 @@ fetch('https://basemap.at/wmts/1.0.0/WMTSCapabilities.xml').then(
                 //delete point if mode is set to wastebin
                 if (mode == modes.BIN) handleBin(event.coordinate)
             });
+            routesLayer.on('change', (e) => {
+                updateInformationFields()
+            })
             //deactivate split interaction on start
             splitInteraction.setActive(false)
             //add split interaction to map
             map.addInteraction(splitInteraction)
+            updateInformationFields()
+
+            //============================================================
+            //       === hover LineString-Feature display length ===
+            var currLengthElem = document.getElementById("currLength")
+            var hoverStyle = new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: '#ff9233', width: 3 })
+            })
+            var defaultStyle = new ol.style.Style({
+                stroke: new ol.style.Stroke({ color: '#ffcc33', width: 3 })
+            })
+            var hoverInteraction = new ol.interaction.Hover({ cursor: "pointer" });
+            var hoverFeaturePixel
+            hoverInteraction.on('enter', (e) => {
+                if (e.feature.getGeometry().getType() == 'LineString') {
+                    e.feature.setStyle(hoverStyle)
+                    currLengthElem.value = formatMeters(e.feature.getGeometry().getLength())
+                    hoverFeaturePixel = e.pixel
+                }
+            })
+
+            hoverInteraction.on('leave', (e) => {
+                map.forEachFeatureAtPixel(hoverFeaturePixel, feature => {
+                    if(feature.getGeometry().getType() == 'LineString'){
+                        feature.setStyle(defaultStyle)
+                    }
+                })
+                currLengthElem.value = 'No LineString selected'
+            })
+            map.addInteraction(hoverInteraction)
+            //============================================================
         });
 
 //export variables and functions so other files can use it
